@@ -1,9 +1,7 @@
-# TODO: study about sockets
-# do the proeject0
-import socket
 from typing import *
 
-
+# from lib import requests
+import requests
 """
 # later might implement regular expression
 # re.findall would be a very useful application
@@ -18,8 +16,6 @@ RIGHT_DELIMITER = "</span>"
 
 SL_DETECT_LANGUAGE = "auto"
 AMPERSAND_WITH_TEXT_FORMAT = "&text="
-
-HOSTNAME_GOOGLE_TRANSLATE = "translate.google.com"
 
 # this is the formatting string of link
 LINK = "https://translate.google.com/?sl={sl_language}&tl={tl_language}{ampersand_with_enconded_text}&op=translate"
@@ -54,29 +50,23 @@ def get_encoded_google_translation_link(text : str, tl_language : str, sl_langua
     return encoded_google_translation_link
 
 
-def get_parsed_google_translation(text : str, tl_language, sl_language : str = SL_DETECT_LANGUAGE) -> str:
+def get_parsed_google_translation(text : str, tl_language, sl_language : str = SL_DETECT_LANGUAGE) -> Union[str,None]:
     encoded_google_translation_link = get_encoded_google_translation_link(text, tl_language, sl_language)
 
-    HOST_GOOGLE_TRANSLATE = socket.gethostbyname(HOSTNAME_GOOGLE_TRANSLATE)
-    HTTPS_PORT = 443
-    # create socket with HOSTNAME
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect((HOST_GOOGLE_TRANSLATE, HTTPS_PORT))
-
-
-    # get response
-
-        # UNFORTUNATELY https requires use of ssl/tls and therefore the complexity is higher
-        # instead of looking up about ssl and sockets it woulb be more convenient to find a pre-built library for making https requests
-
-    # parse the response to get translation
-
-    # return the translation
-
+    response = requests.get(encoded_google_translation_link)
+    
+    # return response string type text if successful
+    if (response.status_code == 200):
+        return response.text
+    
+    return None
 
 
 
 # quick test
 if (__name__ == "__main__"):
     print(get_encoded_google_translation_link("a b c\nde f",""))
-    # print(get_parsed_google_translation("",""))
+    # unfortunately the translated text does not come up in the response
+        # likely the response is triggered by scripts and thus we are unable to get any translated text
+        # I think one idea is what if i could run those scripts and then get the new html code?
+    print(get_parsed_google_translation("hello how are you","it","en").find(START_LEFT_DELIMITER))
