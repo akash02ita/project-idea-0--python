@@ -9,16 +9,22 @@ DEFAULT_REGULAR_EXPRESSION = "" # TODO
 """
 
 # for now use delimiters: after using dev tools it seems that the TRANSLATED text is between the LEFT and RIGHT DELIMETER
-START_LEFT_DELIMITER = "<span class=\"Q4iAWc\""
-END_LEFT_DELIMITER = ">"
-RIGHT_DELIMITER = "</span>"
+LEFT_DELIMITER = "<div class=\"result-container\">"
+RIGHT_DELIMITER = "</div>"
 
 
 SL_DETECT_LANGUAGE = "auto"
-AMPERSAND_WITH_TEXT_FORMAT = "&text="
 
 # this is the formatting string of link
-LINK = "https://translate.google.com/?sl={sl_language}&tl={tl_language}{ampersand_with_enconded_text}&op=translate"
+# LINK = "https://translate.google.com/?sl={sl_language}&tl={tl_language}{ampersand_with_enconded_text}&op=translate"
+"""
+New Source used: https://stackoverflow.com/questions/9404628/python-script-to-translate-via-google-translate
+Following source: https://github.com/mouuff/mtranslate
+    specifically: https://github.com/mouuff/mtranslate/blob/acf75a9809a4f21e95341c48f0c6538446098480/mtranslate/core.py at line 70
+
+I noticed that instead of using "translate.google.com", "translate.google.com/m" HAS BEEN USED, which this time does not have any of those missing translation issues (probably the https response already contains the response where the previous time it was not returning it)
+"""
+LINK = "https://translate.google.com/m?sl={sl_language}&tl={tl_language}&hl={website_language}&q={enconded_text}"
 
 
 
@@ -28,45 +34,52 @@ LINK = "https://translate.google.com/?sl={sl_language}&tl={tl_language}{ampersan
 
 
 def get_encoded_google_translation_text(text : str) -> str:
-    encoded_transation_text = ""
-    for c in text:
-        if c == ' ':
-            encoded_transation_text += "%20"
-        elif c == '\n':
-            encoded_transation_text += "%0A"
-        else:
-            encoded_transation_text += c
+    assert '\n' not in text
+    encoded_transation_text = text.replace(" ", "+") # all occurrences replaced
     return encoded_transation_text
 
 
-def get_encoded_google_translation_link(text : str, tl_language : str, sl_language : str = SL_DETECT_LANGUAGE) -> str:
-    ampersand_with_enconded_text = ""
+def get_encoded_google_translation_link(text : str, tl_language : str, sl_language : str = SL_DETECT_LANGUAGE, website_language : str = "en") -> str:
     # add the encoded text
-    if (text): # text must be non-empty
-        encoded_translation_text = get_encoded_google_translation_text(text)
-        ampersand_with_enconded_text += (AMPERSAND_WITH_TEXT_FORMAT + encoded_translation_text)
+    enconded_text = get_encoded_google_translation_text(text)
     # substitute portions of string
-    encoded_google_translation_link = LINK.format(sl_language = sl_language, tl_language = tl_language, ampersand_with_enconded_text = ampersand_with_enconded_text)
+    encoded_google_translation_link = LINK.format(sl_language = sl_language, tl_language = tl_language, website_language = website_language, enconded_text = enconded_text)
     return encoded_google_translation_link
 
 
 def get_parsed_google_translation(text : str, tl_language, sl_language : str = SL_DETECT_LANGUAGE) -> Union[str,None]:
+    assert '\n' not in text
     encoded_google_translation_link = get_encoded_google_translation_link(text, tl_language, sl_language)
 
     response = requests.get(encoded_google_translation_link)
     
     # return response string type text if successful
     if (response.status_code == 200):
-        return response.text
-    
+        html_response =  response.text
+        start = html_response.find(LEFT_DELIMITER)
+        end = html_response.find(RIGHT_DELIMITER, start + 1) # the RIGHT_DELIMITER must be the first occurence after the found LEFT_DELIMITER
+        start += len(LEFT_DELIMITER)
+        translated_text = html_response[start:end]
+        return translated_text
+        
     return None
 
+# "translate.google.com/m" works only for single lines!
+def get_multi_line_parsed_google_translation(text : str, tl_language, sl_language : str = SL_DETECT_LANGUAGE):
+    lines = text.split("\n")
+    # handle errors in case unsuccessful translation of any line
+    add = lambda translated_line : translated_line if translated_line != None else "Error!"
+    translated_lines = [add(get_parsed_google_translation(line, tl_language, sl_language)) for line in lines]
+    translated_text = "\n".join(translated_lines)
+    return translated_text
 
 
 # quick test
 if (__name__ == "__main__"):
-    print(get_encoded_google_translation_link("a b c\nde f",""))
+    # print(get_encoded_google_translation_link("a b c de f",""))
     # unfortunately the translated text does not come up in the response
         # likely the response is triggered by scripts and thus we are unable to get any translated text
         # I think one idea is what if i could run those scripts and then get the new html code?
-    print(get_parsed_google_translation("hello how are you","it","en").find(START_LEFT_DELIMITER))
+    print(get_parsed_google_translation("Hello this is a single line test","it","en"))
+    print("====")
+    print(get_multi_line_parsed_google_translation("Hello this is a multi-line test\ni hope this works","it","en"))
